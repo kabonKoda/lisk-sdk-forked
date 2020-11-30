@@ -458,6 +458,7 @@ module.exports = class Chain {
 	async _forgingTask() {
 		return this.scope.sequence.add(async () => {
 			try {
+				console.log('repeat'.repeat(100))
 				await this.forger.beforeForge();
 				if (!this.forger.delegatesEnabled()) {
 					this.logger.debug('No delegates are enabled');
@@ -480,11 +481,6 @@ module.exports = class Chain {
 		} catch (err) {
 			this.logger.error(err, 'Failed to load delegates');
 		}
-		jobQueue.register(
-			'nextForge',
-			async () => this._forgingTask(),
-			forgeInterval,
-		);
 	}
 
 	_subscribeToEvents() {

@@ -35,7 +35,7 @@
 			"host": "localhost",
 			"port": 5432,
 			"database": "lisk_dev",
-			"user": "lisk",
+			"user": "postgres",
 			"password": "password",
 			"min": 10,
 			"max": 25,
