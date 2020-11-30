@@ -9,20 +9,28 @@ const { PerformanceObserver, performance } = require('perf_hooks');
 let measurement = [];
 
 const obs = new PerformanceObserver(items => {
-	console.log(items.getEntries()[0].duration);
+	// console.log(items.getEntries()[0].duration);
 	measurement.push(items.getEntries()[0].duration);
 	performance.clearMarks();
 });
 obs.observe({ entryTypes: ['measure'] });
 
-const clearMeasurement = () => {
-	measurement = [];
-};
-const getAverage = () => {
+const showResultAndClear = title => {
 	const sum = measurement.reduce((prev, curr) => {
 		return prev + curr;
 	}, 0);
-	return sum / measurement.length;
+	const average = sum / measurement.length;
+	const trial = measurement.length;
+	const max = Math.max(...measurement);
+	const min = Math.min(...measurement);
+	console.info({
+		title,
+		average,
+		trial,
+		max,
+		min,
+	});
+	measurement = [];
 };
 
 // Forge 100 empty blocks
@@ -37,7 +45,7 @@ const getAverage = () => {
 
 const prepare = async () => {
 	const app = new Application(genesisBlock, config);
-	return new Promise((resolve, reject) => {
+	const node = await new Promise((resolve, reject) => {
 		app.run().catch(err => reject(err));
 		const id = setInterval(() => {
 			if (app.controller.modules && app.controller.modules.chain) {
@@ -46,6 +54,8 @@ const prepare = async () => {
 			}
 		}, 10);
 	});
+	await node.chain.forger.loadDelegates();
+	return node;
 };
 
 const createBlock = async (node, transactions = []) => {
@@ -72,8 +82,7 @@ const createBlock = async (node, transactions = []) => {
 
 const exec = async () => {
 	const node = await prepare();
-	await node.chain.forger.loadDelegates();
-	for (let i = 0; i < 103; i += 1) {
+	for (let i = 0; i < 500; i += 1) {
 		const block = await createBlock(node, []);
 		performance.mark('Start');
 		node.chain.blocks._lastBlock = await node.chain.blocks.blocksProcess.processBlock(
@@ -83,8 +92,7 @@ const exec = async () => {
 		performance.mark('End');
 		performance.measure('Start to End', 'Start', 'End');
 	}
-	console.log({ average: getAverage() });
-	clearMeasurement();
+	showResultAndClear('Empty blocks');
 };
 
 exec().catch(console.error);
