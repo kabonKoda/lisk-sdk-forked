@@ -46,6 +46,7 @@ const showResultAndClear = title => {
 	measurement = [];
 };
 
+const tryCount = 500;
 const numberOfAccounts = 118;
 
 const accounts = new Array(numberOfAccounts).fill().map(() => {
@@ -95,11 +96,9 @@ const createBlock = async (node, transactions = []) => {
 	);
 };
 
-const tryCount = 500;
-
 const measureProcessing = async (title, node, txCreate) => {
 	for (let i = 0; i < tryCount; i += 1) {
-		const block = await createBlock(node, txCreate());
+		const block = await createBlock(node, txCreate(i));
 		performance.mark('Start');
 		node.chain.blocks._lastBlock = await node.chain.blocks.blocksProcess.processBlock(
 			block,
@@ -123,7 +122,7 @@ const measureTransferBlock = async node => {
 		const txs = [];
 		for (let i = 0; i < numberOfAccounts; i += 1) {
 			const tx = transfer({
-				amount: String(10000000000 + i),
+				amount: String(100000000000 + i),
 				passphrase,
 				recipientId: accounts[i].address,
 			});
@@ -136,12 +135,15 @@ const measureTransferBlock = async node => {
 
 // Forge 100 blocks with vote 100
 const measureVoteBlock = async node => {
-	const transactionCreate = () => {
+	const transactionCreate = count => {
 		const txs = [];
+		const key = count % 2 === 0 ? 'votes' : 'unvotes';
 		for (let i = 0; i < numberOfAccounts; i += 1) {
 			const tx = castVotes({
 				passphrase: accounts[i].passphrase,
-				votes: accounts.slice(0, 33).map(a => a.publicKey),
+				[key]: config.modules.chain.forging.delegates
+					.slice(0, 33)
+					.map(d => d.publicKey),
 			});
 			txs.push(new VoteTransaction(tx));
 		}
