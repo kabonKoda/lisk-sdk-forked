@@ -16,8 +16,11 @@ const {
 } = require('lisk-framework/src/modules/chain/forger');
 const { PerformanceObserver, performance } = require('perf_hooks');
 
-const passphrase =
+const genesisPassphrase =
 	'wagon stock borrow episode laundry kitten salute link globe zero feed marble';
+
+const passphrase =
+	'blanket pet happy measure hungry fold carbon leaf nature moment then crew';
 
 let measurement = [];
 
@@ -46,7 +49,7 @@ const showResultAndClear = title => {
 	measurement = [];
 };
 
-const tryCount = 500;
+const tryCount = 10;
 const numberOfAccounts = 118;
 
 const accounts = new Array(numberOfAccounts).fill().map(() => {
@@ -96,6 +99,21 @@ const createBlock = async (node, transactions = []) => {
 	);
 };
 
+const fundAccount = async node => {
+	const addressAndPK = getAddressAndPublicKeyFromPassphrase(passphrase);
+	const tx = transfer({
+		amount: '1000000000000000',
+		passphrase: genesisPassphrase,
+		recipientId: addressAndPK.address,
+	});
+	const block = await createBlock(node, [new TransferTransaction(tx)]);
+	console.log(block);
+	node.chain.blocks._lastBlock = await node.chain.blocks.blocksProcess.processBlock(
+		block,
+		node.chain.blocks.lastBlock
+	);
+};
+
 const measureProcessing = async (title, node, txCreate) => {
 	for (let i = 0; i < tryCount; i += 1) {
 		const block = await createBlock(node, txCreate(i));
@@ -122,7 +140,7 @@ const measureTransferBlock = async node => {
 		const txs = [];
 		for (let i = 0; i < numberOfAccounts; i += 1) {
 			const tx = transfer({
-				amount: String(100000000000 + i),
+				amount: String(100000000000 + Math.floor(Math.random() * 10000)),
 				passphrase,
 				recipientId: accounts[i].address,
 			});
@@ -154,6 +172,7 @@ const measureVoteBlock = async node => {
 
 const exec = async () => {
 	const node = await prepare();
+	await fundAccount(node);
 	await measureEmptyBlock(node);
 	await measureTransferBlock(node);
 	await measureVoteBlock(node);
