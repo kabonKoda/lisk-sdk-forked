@@ -42,8 +42,8 @@ const showResultAndClear = (title) => {
 	measurement = [];
 };
 
-const tryCount = 50;
-const numberOfAccounts = 518;
+const tryCount = 10;
+const numberOfAccounts = 118;
 
 const accounts = new Array(numberOfAccounts).fill().map(() => {
 	const pass = Mnemonic.generateMnemonic();
@@ -54,12 +54,14 @@ const accounts = new Array(numberOfAccounts).fill().map(() => {
 	};
 });
 
+let app;
+
 const prepare = async () => {
 	config.rootPath = __dirname;
 	config.label = 'benchmark';
-	config.logger.consoleLogLevel = 'info';
+	config.logger.consoleLogLevel = 'error';
 	config.genesisConfig.maxPayloadLength = 1024 * 300;
-	const app = Application.defaultApplication(genesisBlock, config);
+	app = Application.defaultApplication(genesisBlock, config);
 	await app.run();
 	app._node._forgingJob.stop();
 	return app._node;
@@ -182,6 +184,8 @@ const exec = async () => {
 	await measureEmptyBlock(node);
 	await measureTransferBlock(node);
 	await measureVoteBlock(node);
+
+	await app.shutdown(0);
 };
 
 exec().catch(console.error);
