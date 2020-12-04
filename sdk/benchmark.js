@@ -9,12 +9,12 @@ const {
 	getAddressAndPublicKeyFromPassphrase,
 } = require('@liskhq/lisk-cryptography');
 const { Mnemonic } = require('@liskhq/lisk-passphrase');
-const genesisBlock = require('./src/samples/genesis_block_devnet.json');
-const config = require('./src/samples/config_devnet.json');
 const {
 	getDelegateKeypairForCurrentSlot,
 } = require('lisk-framework/src/modules/chain/forger');
 const { PerformanceObserver, performance } = require('perf_hooks');
+const genesisBlock = require('./src/samples/genesis_block_devnet.json');
+const config = require('./src/samples/config_devnet.json');
 
 const genesisPassphrase =
 	'wagon stock borrow episode laundry kitten salute link globe zero feed marble';
@@ -32,9 +32,7 @@ const obs = new PerformanceObserver(items => {
 obs.observe({ entryTypes: ['measure'] });
 
 const showResultAndClear = title => {
-	const sum = measurement.reduce((prev, curr) => {
-		return prev + curr;
-	}, 0);
+	const sum = measurement.reduce((prev, curr) => prev + curr, 0);
 	const average = sum / measurement.length;
 	const trial = measurement.length;
 	const max = Math.max(...measurement);
@@ -61,9 +59,12 @@ const accounts = new Array(numberOfAccounts).fill().map(() => {
 	};
 });
 
+let app;
+
 const prepare = async () => {
 	config.app.genesisConfig.MAX_TRANSACTIONS_PER_BLOCK = 120;
-	const app = new Application(genesisBlock, config);
+	config.components.logger.consoleLogLevel = 'error';
+	app = new Application(genesisBlock, config);
 	const node = await new Promise((resolve, reject) => {
 		app.run().catch(err => reject(err));
 		const id = setInterval(() => {
@@ -176,6 +177,8 @@ const exec = async () => {
 	await measureEmptyBlock(node);
 	await measureTransferBlock(node);
 	await measureVoteBlock(node);
+
+	await app.shutdown();
 };
 
 exec().catch(console.error);
