@@ -48,6 +48,10 @@ import {
 	getLocationFromIndex,
 	getLayerStructure,
 	getNeighborIndex,
+	toIndex,
+	isLeft,
+	isSameLayer,
+	areSiblings,
 } from './utils';
 
 export class MerkleTree {
@@ -288,27 +292,27 @@ export class MerkleTree {
 		const siblingHashes: Buffer[] = [];
 		const sortedIdxs: number[] = [...idxs];
 		const indexes: Map<number, number> = new Map<number, number>();
-	
+
 		sortedIdxs.sort((a, b) => {
 			const locationA = getLocationFromIndex(a, this._size);
 			const locationB = getLocationFromIndex(b, this._size);
 			if (locationA.layerIndex !== locationB.layerIndex) return locationA.layerIndex - locationB.layerIndex;
 			return locationA.nodeIndex - locationB.nodeIndex;
 		})
-	
+
 		for (const idx of sortedIdxs) {
 			indexes.set(idx, idx);
 		}
-	
+
 		while(indexes.size > 0) {
 			const currentIndex = [...indexes][0][0];
 			const { layerIndex: currentLayerIndex } = getLocationFromIndex(currentIndex, this._size);
-			
-			// Might be an unpaired node's index that moved upwards in the tree 
+
+			// Might be an unpaired node's index that moved upwards in the tree
 			const neighborIndex = getNeighborIndex(currentIndex);
 			const { nodeIndex: neighborNodeIndex } = getLocationFromIndex(neighborIndex, this._size);
 			const parentIndex = currentIndex >> 1;
-	
+
 			const layerStructure = getLayerStructure(this._size);
 			const nodeCountAtCurrentLayer = layerStructure[currentLayerIndex];
 
@@ -333,7 +337,7 @@ export class MerkleTree {
 					getBinaryString(neighborNodeIndex, this._getHeight() - currentLayerIndex),
 				)) as Buffer;
 			}
-	
+
 			if (neighborNodeIndex !== nodeCountAtCurrentLayer || didNodeDelegate) {
 				if (indexes.has(neighborIndex)) {
 					indexes.delete(neighborIndex);
@@ -343,12 +347,81 @@ export class MerkleTree {
 			}
 
 			indexes.delete(currentIndex);
-	
+
 			if(parentIndex !== 2) {
 				indexes.set(parentIndex, parentIndex);
 			}
 		}
 
+		return siblingHashes;
+	}
+
+
+	public async _getSiblingHashes(idxs: number[]): Promise<Buffer[]> {
+		let sortedIdxs: number[] = [...idxs];
+		sortedIdxs.sort((a, b) => {
+			if (a.toString(2).length === b.toString(2).length) {
+				return a - b;
+			}
+			return b - a;
+		});
+		const siblingHashes: Buffer[] = [];
+		const size = this._size;
+		const height = this._getHeight();
+		while (sortedIdxs.length > 0) {
+			const currentIndex = sortedIdxs[0];
+			// check for next index in case I can use it if: node is left AND there are other indices AND next index is at distance 1 AND it is on the same layer
+			// in that case remove it from the indices
+			if (isLeft(currentIndex) && sortedIdxs.length > 1 && isSameLayer(currentIndex, sortedIdxs[1]) && areSiblings(currentIndex, sortedIdxs[1])) {
+				sortedIdxs = sortedIdxs.slice(2);
+				const parentIndex = currentIndex >> 1;
+				sortedIdxs.push(parentIndex);
+				sortedIdxs.sort((a, b) => {
+					if (a.toString(2).length === b.toString(2).length) {
+						return a - b;
+					}
+					return b - a;
+				});
+				continue;
+			}
+			const currentNodeLoc = getLocationFromIndex(currentIndex, size);
+			if (currentNodeLoc.layerIndex === height) {
+				return siblingHashes;
+			}
+			const siblingNode = getRightSiblingInfo(currentNodeLoc.nodeIndex, currentNodeLoc.layerIndex, size);
+			if (siblingNode) {
+				const siblingIndex = toIndex(siblingNode.nodeIndex, siblingNode.layerIndex, height);
+				const inOriginal = idxs.findIndex(i => i === siblingIndex);
+				if (inOriginal > -1) {
+					sortedIdxs = sortedIdxs.filter(i => i !== currentIndex);
+					const parentIndex = currentIndex >> 1;
+					sortedIdxs.push(parentIndex);
+					sortedIdxs.sort((a, b) => {
+						if (a.toString(2).length === b.toString(2).length) {
+							return a - b;
+						}
+						return b - a;
+					});
+					continue;
+				}
+
+				const location = getBinaryString(siblingNode.nodeIndex, height - siblingNode.layerIndex);
+				const siblingHash = await this._locationToHashMap.get(location);
+				if (!siblingHash) {
+					throw new Error(`Invalid tree state for ${siblingNode.nodeIndex} ${siblingNode.layerIndex}`);
+				}
+				siblingHashes.push(siblingHash);
+			}
+			sortedIdxs = sortedIdxs.filter(i => i !== currentIndex);
+			const parentIndex = currentIndex >> 1;
+			sortedIdxs.push(parentIndex);
+			sortedIdxs.sort((a, b) => {
+				if (a.toString(2).length === b.toString(2).length) {
+					return a - b;
+				}
+				return b - a;
+			});
+		}
 		return siblingHashes;
 	}
 
